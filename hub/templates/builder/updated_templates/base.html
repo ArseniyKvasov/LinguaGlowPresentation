@@ -1,0 +1,356 @@
+{% load static %}
+{% load custom_filters %}
+<!DOCTYPE html>
+<html lang="en" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{% static 'updated_functions/styles/common.css' %}">
+    {% if user_role == 'teacher' %}
+        <link rel="stylesheet" href="{% static 'updated_functions/styles/teacher.css' %}">
+    {% endif %}
+    <style>
+        body {
+            font-family: 'Montserrat', 'Segoe UI', 'Helvetica', 'Arial', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm rounded-bottom sticky-top" style="z-index: 10;">
+        <div class="container-fluid d-flex align-items-center">
+            <a class="navbar-brand text-primary fw-bold" href="{% url 'home' %}">LinguaGlow</a>
+            <button
+                class="navbar-toggler"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#navbarNav"
+                aria-controls="navbarNav"
+                aria-expanded="false"
+                aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+        </div>
+    </nav>
+
+    <div class="row m-1 m-lg-4 mt-4 d-flex justify-content-center">
+        <!-- Основной контент страницы -->
+        <div id="main-container" class="col-12 col-lg-9" data-lesson-id="{{ lesson.id }}" data-section-id="{{ section_list.first.id }}" data-user-role="{{ user_role }}" data-mode="{{ mode }}" data-user-id="{{ user_id }}" data-username="{{ request.user.username }}" data-copying-mode="{{ classroom.features.copying | lower }}" data-classroom-id="{{ classroom_id }}" style="z-index: 1;">
+            <div id="task-list">
+                {% for task in tasks %}
+                    <div class="align-items-start mb-3 full-task-container" style="display: none;">
+                        {% if user_role == 'teacher' %}
+                            <div class="drag-handle me-3" style="cursor: grab; display: none;">
+                                <i class="bi bi-grip-vertical"></i>
+                            </div>
+                        {% endif %}
+                        <div class="task-item card border-0 rounded bg-white shadow flex-grow-1"
+                             id="{{ task.id }}"
+                             data-section-id="{{ task.section.id }}"
+                             data-task-type="{{ task.content_type.model }}">
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            <div id="task-creation">
+                <div id="task-selector-container" class="bg-white rounded" style="display: none;"></div>
+                <div id="task-editor-container" class="bg-white rounded"></div>
+                <div id="add-task-button-wrapper" class="my-3 bg-white rounded">
+                  <!-- Кнопка будет создана через JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Контейнер с секциями и контекстом -->
+        <div class="row col-12 col-lg-3 mt-4 mt-lg-0 mb-4 d-flex flex-column">
+            <div id="secondary-container">
+                <div class="d-flex flex-column">
+                    <!-- Секции -->
+                    <div class="mb-3">
+                        <div class="card shadow-sm rounded" style="max-height: calc(50vh - 75px);">
+                            <ul class="list-group list-group-flush overflow-y-auto" id="section-list">
+                                {% for section in section_list %}
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <button type="button" class="btn btn-link section-link text-decoration-none text-truncate text-primary p-0 me-2"
+                                                data-section-id="{{ section.id }}">
+                                            {{ section.name }}
+                                        </button>
+                                        <div class="section-action-buttons align-items-center" style="display: none;">
+                                            <i class="bi bi-pencil-fill text-secondary me-2 edit-section-icon"
+                                               data-section-id="{{ section.id }}"
+                                               title="Редактировать название"></i>
+                                            <form method="POST" action="{% url 'delete_section' section.id %}" class="delete-section m-0">
+                                                {% csrf_token %}
+                                                <button class="btn btn-link p-0" title="Удалить">
+                                                    <i class="bi bi-trash3-fill text-secondary"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                            <!-- Кнопка "Добавить раздел" -->
+                            {% if user_role == 'teacher' %}
+                            <div class="text-center m-1" style="display: none;">
+                                <a href="#"
+                                   class="btn text-primary border-0 w-100 fw-semibold add-section-link"
+                                   data-lesson-id="{{ lesson.id }}">+ Добавить раздел</a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Контекст — только на lg и выше -->
+                    <div class="d-none d-lg-flex flex-column" style="height: calc(50vh - 75px);">
+                        <div class="context-window card shadow-sm overflow-y-auto rounded p-3" style="flex: 1 1 auto;">
+                            <p class="permanent-context-text text-muted text-center m-0">Добавьте задания в контекст, чтобы генерировать план урока на их основе.</p>
+                        </div>
+                        <div class="d-flex justify-content-center">
+                            <button class="addTextContentButton btn btn-sm my-2 text-primary border-0 fw-bold" style="display: none;">Добавить заметку</button>
+                        </div>
+                        <div class="noteContainer w-100 mt-2"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Кнопки управления внизу правой панели -->
+            <div class="d-flex position-fixed bottom-0 end-0 justify-content-end bg-white shadow rounded align-items-center p-2 m-2" style="height: 50px; width: auto; z-index: 1039;">
+                    <!-- Кнопка открытия контекста -->
+                    <button class="btn border-0 d-lg-none"
+                            data-bs-toggle="offcanvas"
+                            data-bs-target="#contextOffcanvas">
+                        <i class="bi bi-bookmark text-secondary"></i>
+                    </button>
+
+                    {% if mode == "generation" and user_role == "teacher" %}
+                        <!-- Кнопка активации перемещения -->
+                        <button id="dragToggle" class="btn border-0" onclick="changeMoveStatus();" style="display: none;">
+                            <i class="bi bi-arrows-move"></i>
+                        </button>
+
+                        <!-- Модальное окно для добавления урока в класс -->
+                        <button id="addToClassButton" type="button" class="btn border-0" data-bs-toggle="modal" data-bs-target="#classroomModal" style="display: none;">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    {% endif %}
+
+                    {% if mode == "classroom" and user_role == "teacher" %}
+                        <!-- Выпадающий список учеников -->
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-sm btn-primary dropdown-toggle rounded" type="button" id="studentDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-people"></i> <!-- Иконка "Ученики" -->
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow text-truncate" aria-labelledby="studentDropdown" style="max-width: 250px;">
+                                {% for student in students %}
+                                    <li>
+                                        <a class="dropdown-item student-option" href="#" data-student-id="{{ student.id }}">
+                                            {{ student.username }}
+                                        </a>
+                                    </li>
+                                {% endfor %}
+
+                                <!-- Разделитель -->
+                                <li><hr class="dropdown-divider"></li>
+
+                                <!-- Кнопка "Добавить ученика" внутри выпадающего меню -->
+                                <li>
+                                    <button
+                                        class="dropdown-item text-warning"
+                                        id="addStudentButton"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#invitationModal"
+                                    >
+                                        <i class="bi bi-person-plus me-2"></i> <!-- Иконка "Добавить ученика" -->
+                                        Добавить ученика
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Панель управления (троеточие) -->
+                        <div class="dropdown d-inline-block">
+                        <button class="btn btn-sm border-0 rounded" type="button" id="controlPanelDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-three-dots-vertical"></i> <!-- Иконка "Три точки" -->
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="controlPanelDropdown">
+                            <!-- Кнопка "Запретить копирование" -->
+                            <li>
+                                <button
+                                    class="dropdown-item {% if classroom.features.copying %}text-danger{% else %}text-success{% endif %}"
+                                    id="disableCopyingButton">
+                                    <i class="bi {% if classroom.features.copying %}bi-ban{% else %}bi-check-circle{% endif %} me-2"></i>
+                                    <span class="text">
+                                        {% if classroom.features.copying %} Запретить копирование {% else %} Разрешить копирование {% endif %}
+                                    </span>
+                                </button>
+                            </li>
+
+                            <!-- Разделитель -->
+                            <li><hr class="dropdown-divider"></li>
+
+                            <!-- Кнопка "Обновить страницу" -->
+                            <li>
+                                <button class="dropdown-item text-primary" id="refreshPageButton">
+                                    <i class="bi bi-arrow-clockwise me-2"></i> <!-- Иконка "Обновить" -->
+                                    Обновить страницу
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+        </div>
+    </div>
+
+
+    <!-- Модальное окно для приглашения -->
+    <div class="modal fade" id="invitationModal" tabindex="-1" aria-labelledby="invitationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title d-flex align-items-center">
+                        <i class="bi bi-person-plus me-2"></i>
+                        <span id="invitationModalLabel">Приглашение ученика</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-info d-flex align-items-center">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <p class="mb-1">По этой ссылке можно пригласить только одного ученика в течение двух дней.</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="invitationLink" class="form-label text-muted small">Ссылка для приглашения:</label>
+                        <div class="input-group">
+                            <input type="text" id="invitationLink" class="form-control py-2" readonly>
+                            <button class="btn btn-outline-primary d-flex align-items-center" id="copyLinkButton" title="Копировать ссылку">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center text-muted small mt-3">
+                        <i class="bi bi-shield-lock me-2"></i>
+                        <span>Ссылка защищена и работает только для вашего класса</span>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg me-1"></i>
+                        Закрыть
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+     <!-- Контекстное окно -->
+    <div class="offcanvas offcanvas-bottom ms-auto rounded-top d-mb-none" tabindex="-1" id="contextOffcanvas" style="max-width: 768px; max-height: 70vh; min-height: 50vh;">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title fw-bold fs-5">Контекст</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body p-2 d-flex flex-column h-100">
+            <div class="context-window overflow-y-auto rounded" style="max-height: 50vh; display: none;">
+                <p class="permanent-context-text fs-6 text-center mt-3">Добавьте задания в контекст, чтобы генерировать план урока на их основе.</p>
+            </div>
+            <div class="d-flex justify-content-center align-items-center">
+                <button class="addTextContentButton btn border-0 text-primary mb-2 fw-bold" style="display: none;">Добавить заметку</button>
+            </div>
+            <div class="noteContainer w-100 mt-1"></div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для выбора класса -->
+    {% if mode == 'generation' %}
+    <div class="modal fade" id="classroomModal" tabindex="-1" aria-labelledby="classroomModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 rounded-4 shadow-lg">
+                <div class="modal-header bg-white border-bottom-0 px-4 pt-4">
+                    <h5 class="modal-title fw-semibold" id="classroomModalLabel">Добавить урок в класс</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+
+                <div class="modal-body px-4">
+                    {% if classrooms %}
+                    <form id="chooseClassroomForm" method="POST" action="{% url 'choose_classroom' lesson.id %}">
+                        {% csrf_token %}
+                        <h6 class="text-muted mb-3">Выберите существующий класс</h6>
+
+                        <ul class="list-unstyled mb-4">
+                            {% for classroom in classrooms %}
+                                <li class="mb-2">
+                                    <label class="card classroom-card p-3 d-flex align-items-center border border-light-subtle rounded-3 shadow-sm">
+                                        <input type="radio" name="classroom_id" class="d-none" value="{{ classroom.id }}">
+                                        <span class="text-muted mb-0">
+                                            <i class="bi bi-book me-2"></i>{{ classroom.name }}
+                                        </span>
+                                    </label>
+                                </li>
+                            {% endfor %}
+                        </ul>
+
+                        <button type="submit" class="btn btn-success w-100 mb-4">
+                            <i class="bi bi-check-circle me-2"></i> Перейти в класс
+                        </button>
+                    </form>
+
+                    <div class="text-center text-muted mb-3">или</div>
+                    {% endif %}
+
+                    <form id="createClassroomForm" method="POST" action="{% url 'create_classroom' lesson.id %}">
+                        {% csrf_token %}
+                        <h6 class="text-muted mb-3">Создайте новый класс</h6>
+
+                        <!-- Поле для ввода названия класса -->
+                        <div class="input-group mb-3">
+                            <input type="text" name="name" id="id_name" class="form-control" placeholder="Название класса" required>
+                            <button type="submit" class="btn btn-outline-primary">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </div>
+
+                        <!-- Скрытое поле для ID учителя -->
+                        <input type="hidden" name="teacher" value="{{ request|get_current_user }}">
+
+                        <!-- Опционально: Сообщение об ошибках -->
+                        {% if form.errors %}
+                            <div class="alert alert-danger">
+                                Пожалуйста, исправьте следующие ошибки:
+                                <ul>
+                                    {% for field, errors in form.errors.items %}
+                                        {% for error in errors %}
+                                            <li>{{ field|title }}: {{ error }}</li>
+                                        {% endfor %}
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                    </form>
+                </div>
+
+                <div class="modal-footer border-top-0 px-4 pb-4">
+                    <button type="button" class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i> Закрыть
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.3/purify.min.js"></script>
+    <script src="{% static 'updated_functions/common.js' %}"></script>
+
+    {% if user_role == 'teacher' %}
+        <script src="{% static 'updated_functions/generative.js' %}"></script>
+        <script src="{% static 'updated_functions/teacher.js' %}"></script>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,84 @@
+.task-item.dragging {
+    opacity: 0.5;
+    transform: rotate(3deg);
+    max-height: 200px;
+}
+
+/* Стиль для кнопки перемещения */
+#dragToggle {
+    transition: all 0.3s ease;
+}
+
+#dragToggle.btn-primary i {
+    color: white !important;
+}
+
+.sortable-ghost {
+    opacity: 0.5;
+}
+
+
+
+/* Добавление урока в класс */
+.classroom-card {
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.classroom-card:hover {
+    background-color: #f8f9fa;
+    border-color: var(--bs-primary);
+}
+
+.classroom-card.active {
+    background-color: var(--bs-primary-bg-subtle);
+    border-color: var(--bs-primary);
+}
+
+.classroom-card.active .text-muted {
+    color: var(--bs-primary) !important;
+}
+
+
+/* Правда-ложь, тест */
+.correct-radio {
+   background-color: rgba(40, 167, 69, 0.2);
+}
+
+/* Ползунок генерации */
+/* Кастомизация цвета линии и ползунка */
+.custom-range::-webkit-slider-thumb {
+    background-color: #4A90E2; /* Голубой, например */
+    border: none;
+}
+
+.custom-range::-webkit-slider-runnable-track {
+    background-color: #cce5ff; /* Светло-голубая линия */
+}
+
+.custom-range::-moz-range-thumb {
+    background-color: #4A90E2;
+    border: none;
+}
+
+.custom-range::-moz-range-track {
+    background-color: #cce5ff;
+}
+
+/* Изображение */
+.image-upload-area {
+    transition: background-color 0.3s, border 0.3s;
+}
+
+.image-upload-area.drag-over {
+    background-color: #e0f7fa;
+    border: 2px dashed #007bff;
+}
+
+/* Подписать картинки */
+.image-square img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+}
+

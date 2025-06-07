@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мои курсы и классы | Образовательная платформа</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .delete {
+            transition: transform 0.3s ease;
+        }
+
+        .card-hover:hover .delete {
+            transform: translateY(-5px); /* Кнопка будет подниматься при наведении */
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container py-4">
+        <!-- Шапка страницы -->
+        <header class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3 text-primary">
+                <i class="bi bi-mortarboard"></i> Мои ресурсы
+            </h1>
+            <div>
+                <span class="badge bg-light text-dark d-flex align-items-center">
+                    <i class="bi bi-person-circle me-1"></i> {{ user.get_full_name|default:user.username }}
+                </span>
+            </div>
+        </header>
+
+        <!-- Секция классов -->
+        <section class="mb-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h4 text-success">
+                    <i class="bi bi-people-fill"></i> Мои классы
+                </h2>
+            </div>
+
+            {% if classrooms %}
+            <div class="row g-3">
+                {% for classroom in classrooms %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="position-relative">
+                        <a href="{% url 'classroom_view' classroom.id %}" class="text-decoration-none text-dark d-block">
+                            <div class="card h-100 card-hover border-0 shadow-sm">
+                                <div class="card-header bg-white border-bottom-0">
+                                    <div class="d-flex justify-content-between">
+                                        <h3 class="h5 mb-0 text-truncate">{{ classroom.name }}</h3>
+                                        <span class="badge d-flex align-items-center {% if user in classroom.teachers.all %}bg-primary{% else %}bg-success{% endif %} badge-role">
+                                            {% if user in classroom.teachers.all %}Учитель{% else %}Ученик{% endif %}
+                                        </span>
+                                    </div>
+                                    <small class="text-muted">Урок: {{ classroom.lesson.name }}</small>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-muted small">
+                                            <i class="bi bi-people"></i>
+                                            {% with count=classroom.students.count %}
+                                                {% if count == 1 %}
+                                                    {{ count }} ученик
+                                                {% elif count >= 2 and count <= 4 %}
+                                                    {{ count }} ученика
+                                                {% else %}
+                                                    {{ count }} учеников
+                                                {% endif %}
+                                            {% endwith %}
+                                        </span>
+                                        {% if user in classroom.teachers.all %}
+                                        <button class="btn border-0 btn-sm delete-classroom delete"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#confirmDeleteModal"
+                                                data-classroom-id="{{ classroom.id }}"
+                                                data-classroom-name="{{ classroom.name }}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-people text-muted" style="font-size: 3rem;"></i>
+                    <h3 class="h5 mt-3">У вас нет активных классов</h3>
+                    <p class="text-muted">
+                        {% if role == 'teacher' %}
+                            Создайте новый класс, нажав на + справа снизу при создании урока
+                        {% else %}
+                            Получите ссылку-приглашение от учителя
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Секция курсов (только для учителей) -->
+        {% if role == 'teacher' %}
+        <section class="mb-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h4 text-primary">
+                    <i class="bi bi-journal-bookmark-fill"></i> Мои курсы
+                </h2>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addCourseModal">
+                    <i class="bi bi-plus-lg"></i> Новый курс
+                </button>
+            </div>
+
+            {% if courses %}
+            <div class="row g-3">
+                {% for course in courses %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 card-hover border-0 shadow-sm position-relative">
+                        <a href="{% url 'lesson_list' course.id %}" class="text-decoration-none text-dark d-block">
+                            <div class="card-header bg-white border-bottom-0">
+                                <div class="d-flex justify-content-start">
+                                    <h3 class="h5 mb-0 text-truncate">{{ course.name }}</h3>
+                                </div>
+                                <small class="text-muted">Уроков: {{ course.lessons.count }}</small>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-end align-items-center">
+                                    {% if user == course.user %}
+                                        <button class="btn border-0 btn-sm delete-course delete"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#confirmDeleteModal"
+                                                data-course-id="{{ course.id }}"
+                                                data-course-name="{{ course.name }}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-journal-text text-muted" style="font-size: 3rem;"></i>
+                    <h3 class="h5 mt-3">У вас нет активных курсов</h3>
+                    <p class="text-muted">Создайте курс, чтобы собрать уроки и классы в одном месте</p>
+                </div>
+            </div>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        <!-- Модальное окно подтверждения удаления -->
+        <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-exclamation-triangle"></i> Подтверждение удаления
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Вы действительно хотите удалить <strong id="itemName"></strong>?</p>
+                        <p class="text-muted small">Это действие нельзя отменить.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-lg"></i> Отмена
+                        </button>
+                        <button type="button" class="btn btn-danger" id="confirmDeleteButton">
+                            <i class="bi bi-trash"></i> Удалить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальное окно добавления курса -->
+        <div class="modal fade" id="addCourseModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <form method="POST" action="{% url 'create_course' %}" id="courseForm">
+                        {% csrf_token %}
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title">
+                                <i class="bi bi-plus-circle"></i> Создание нового курса
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Название курса *</label>
+                                <input type="text" class="form-control" id="name" name="name" required
+                                       placeholder="Введите название курса">
+                            </div>
+                            <div class="mb-3">
+                                <label for="student_level" class="form-label">Уровень сложности *</label>
+                                <select class="form-select" id="student_level" name="student_level" required>
+                                    <option value="" disabled selected>Выберите уровень</option>
+                                    <option value="starter">Starter (Начальный)</option>
+                                    <option value="elementary">Elementary (Элементарный)</option>
+                                    <option value="pre_intermediate">Pre-Intermediate (Ниже среднего)</option>
+                                    <option value="intermediate">Intermediate (Средний)</option>
+                                    <option value="upper_intermediate">Upper-Intermediate (Выше среднего)</option>
+                                    <option value="advanced">Advanced (Продвинутый)</option>
+                                </select>
+                            </div>
+                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="bi bi-x-lg"></i> Отмена
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Сохранить курс
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Подключение скриптов -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const confirmDeleteModal = document.getElementById('confirmDeleteModal');
+            const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+            let deleteUrl = '';
+            let currentItemId = '';
+
+            // Обработчик для кнопок удаления класса
+            document.querySelectorAll('.delete-classroom').forEach(button => {
+                button.addEventListener('click', function(event) {
+                    event.stopPropagation(); // Останавливаем распространение события клика
+                    event.preventDefault(); // Останавливаем переход по ссылке, если клик был по кнопке удаления
+                    currentItemId = this.dataset.classroomId;
+                    document.getElementById('itemName').textContent = this.dataset.classroomName;
+                    deleteUrl = `/classrooms/${currentItemId}/delete/`;
+                });
+            });
+
+            // Обработчик для кнопок удаления курса
+            document.querySelectorAll('.delete-course').forEach(button => {
+                button.addEventListener('click', function(event) {
+                    event.stopPropagation(); // Останавливаем распространение события клика
+                    event.preventDefault(); // Останавливаем переход по ссылке, если клик был по кнопке удаления
+                    currentItemId = this.dataset.courseId;
+                    document.getElementById('itemName').textContent = this.dataset.courseName;
+                    deleteUrl = `/course/${currentItemId}/delete/`;
+                });
+            });
+
+            // Обработчик подтверждения удаления
+            confirmDeleteButton.addEventListener('click', function() {
+                if (deleteUrl && currentItemId) {
+                    fetch(deleteUrl, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': '{{ csrf_token }}',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({})
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            window.location.reload();
+                        } else {
+                            alert('Ошибка при удалении');
+                        }
+                    })
+                    .catch(error => console.error('Error:', error));
+                }
+
+                // Закрываем модальное окно
+                const modal = bootstrap.Modal.getInstance(confirmDeleteModal);
+                modal.hide();
+            });
+
+            // Валидация формы курса
+            const courseForm = document.getElementById('courseForm');
+            if (courseForm) {
+                courseForm.addEventListener('submit', function(e) {
+                    const nameInput = document.getElementById('name');
+                    if (nameInput.value.trim().length < 3) {
+                        e.preventDefault();
+                        alert('Название курса должно содержать минимум 3 символа');
+                        nameInput.focus();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

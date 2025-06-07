@@ -1,0 +1,11 @@
+{% extends 'builder/updated_templates/base.html' %}
+
+{% load static %}
+
+{% block title %} LinguaGlow {% endblock %}
+
+{% block content %}
+    <div id="classroomId" class="d-none" data-classroom-id="{{ classroom_id }}"></div>
+
+    <script src="{% static 'updated_functions/classroom.js' %}"></script>
+{% endblock %}
