@@ -345,64 +345,126 @@ def get_task_data(request, task_id):
         task_instance = get_object_or_404(BaseTask, id=task_id)
         content_type = task_instance.content_type
         content_object = task_instance.content_object
+        model_class = content_type.model_class()
+        is_owner = request.user == task_instance.section.lesson.course.user
 
-        if content_type.model_class() == WordList:
-            data = {
-                "id": task_id,
-                "title": content_object.title,
-                "words": content_object.words,
-            }
-        elif content_type.model_class() == MatchUpTheWords:
-            data = {
-                "id": task_id,
-                "title": content_object.title,
-                "pairs": content_object.pairs,
-            }
-        elif content_type.model_class() == Essay:
-            data = {
-                "id": task_id,
-                "title": content_object.title,
-                "conditions": content_object.conditions,
-            }
-        elif content_type.model_class() == Note:
-            data = {
-                "id": task_id,
-                "title": content_object.title,
-                "content": content_object.content,
-            }
-        elif content_type.model_class() == Image:
-            data = {
-                "id": task_id,
-                "image_url": content_object.image_url,
-                "title": content_object.title,
-            }
-        elif content_type.model_class() == Dialogue:
-            data = {
-                "id": task_id,
-                "lines": content_object.lines,
-            }
-        elif content_type.model_class() == Article:
-            data = {
-                "id": task_id,
-                "title": content_object.title,
-                "content": content_object.content,
-            }
-        elif content_type.model_class() == Audio:
-            data = {
-                "id": task_id,
-                "title": content_object.title,
-                "audio_url": content_object.audio_url,
-                "transcript": content_object.transcript,
-            }
-        elif content_type.model_class() == EmbeddedTask:
-            data = {
-                "id": task_id,
-                "title": content_object.title,
-                "embed_code": content_object.embed_code,
-            }
+        # Common data for all task types
+        base_data = {
+            "id": task_id,
+            "taskType": content_type.model,
+            "title": getattr(content_object, 'title', None),
+        }
+
+        # Handle task types that don't depend on ownership
+        match model_class:
+            case WordList:
+                return JsonResponse({
+                    **base_data,
+                    "words": content_object.words,
+                })
+
+            case MatchUpTheWords:
+                return JsonResponse({
+                    **base_data,
+                    "pairs": content_object.pairs,
+                })
+
+            case Essay:
+                return JsonResponse({
+                    **base_data,
+                    "conditions": content_object.conditions,
+                })
+
+            case Note | Article:
+                return JsonResponse({
+                    **base_data,
+                    "content": content_object.content,
+                })
+
+            case Image:
+                return JsonResponse({
+                    **base_data,
+                    "image_url": content_object.image_url,
+                })
+
+            case Dialogue:
+                return JsonResponse({
+                    **base_data,
+                    "lines": content_object.lines,
+                })
+
+            case Audio:
+                return JsonResponse({
+                    **base_data,
+                    "audio_url": content_object.audio_url,
+                    "transcript": content_object.transcript,
+                })
+
+            case EmbeddedTask:
+                return JsonResponse({
+                    **base_data,
+                    "embed_code": content_object.embed_code,
+                })
+
+        # Handle task types that depend on ownership
+        if is_owner:
+            match model_class:
+                case SortIntoColumns:
+                    labels = []
+                    for column in content_object.columns:
+                        labels.extend(column['words'])
+                    random.shuffle(labels)
+                    return JsonResponse({
+                        **base_data,
+                        "columns": content_object.columns,
+                        "labels": labels,
+                    })
+
+                case MakeASentence:
+                    return JsonResponse({
+                        **base_data,
+                        "sentences": content_object.sentences,
+                    })
+
+                case Unscramble:
+                    return JsonResponse({
+                        **base_data,
+                        "words": content_object.words,
+                    })
+
+                case FillInTheBlanks:
+                    labels = re.findall(r'\[(.*?)\]', content_object.text)
+                    random.shuffle(labels)
+                    return JsonResponse({
+                        **base_data,
+                        "text": content_object.text,
+                        "display_format": content_object.display_format,
+                        "labels": labels,
+                    })
+
+                case Test:
+                    return JsonResponse({
+                        **base_data,
+                        "questions": content_object.questions,
+                    })
+
+                case TrueOrFalse:
+                    return JsonResponse({
+                        **base_data,
+                        "statements": content_object.statements,
+                    })
+
+                case LabelImages:
+                    labels = [img['label'] for img in content_object.images]
+                    random.shuffle(labels)
+                    return JsonResponse({
+                        **base_data,
+                        "images": content_object.images,
+                        "labels": labels,
+                    })
         else:
-            if request.user != task_instance.section.lesson.course.user:
-                if content_type.model_class() == SortIntoColumns:
+            match model_class:
+                case SortIntoColumns:
                     columns = content_object.columns
                     labels = []
                     for column in columns:
@@ -411,155 +473,83 @@ def get_task_data(request, task_id):
                             column['words'][i] = '/'
                             labels.append(word)
                     random.shuffle(labels)
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
+                    return JsonResponse({
+                        **base_data,
                         "columns": columns,
                         "labels": labels,
-                    }
-                elif content_type.model_class() == MakeASentence:
+                    })
+
+                case MakeASentence:
                     array = content_object.sentences
                     for sentence_data in array:
                         sentence_data['correct'] = '/ ' * (len(sentence_data['correct'].split(' ')) - 1)
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
+                    return JsonResponse({
+                        **base_data,
                         "sentences": array,
-                    }
-                elif content_type.model_class() == Unscramble:
+                    })
+
+                case Unscramble:
                     array = content_object.words
                     for word_data in array:
                         word_data['word'] = '/' * len(word_data['word'])
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
+                    return JsonResponse({
+                        **base_data,
                         "words": array,
-                    }
-                elif content_type.model_class() == FillInTheBlanks:
+                    })
+
+                case FillInTheBlanks:
                     text = content_object.text
                     labels = re.findall(r'\[(.*?)\]', text)
                     text = re.sub(r'\[(.*?)\]', lambda m: '[' + '/' + ']', text)
-                    print(content_object.display_format)
                     if content_object.display_format != "withList":
                         labels = []
                     else:
                         random.shuffle(labels)
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
+                    return JsonResponse({
+                        **base_data,
                         "text": text,
                         "display_format": content_object.display_format,
                         "labels": labels,
-                    }
-                elif content_type.model_class() == Test:
+                    })
+
+                case Test:
                     questions = content_object.questions
                     for q in questions:
                         for answer in q["answers"]:
                             answer["is_correct"] = False
-
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
+                    return JsonResponse({
+                        **base_data,
                         "questions": questions,
-                    }
-                elif content_type.model_class() == TrueOrFalse:
+                    })
+
+                case TrueOrFalse:
                     statements = content_object.statements
                     for s in statements:
                         s["is_true"] = False
-
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
+                    return JsonResponse({
+                        **base_data,
                         "statements": statements,
-                    }
-                elif content_type.model_class() == LabelImages:
+                    })
+
+                case LabelImages:
                     array = content_object.images
                     labels = []
                     for image_data in array:
                         labels.append(image_data['label'])
                         image_data['label'] = '/'
                     random.shuffle(labels)
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
+                    return JsonResponse({
+                        **base_data,
                         "images": array,
-                        "labels": labels,  # Теперь labels уже перемешан
-                    }
-                else:
-                    return JsonResponse({"error": "Unknown task type"}, status=400)
-            else:
-                if content_type.model_class() == SortIntoColumns:
-                    labels = []
-                    for column in content_object.columns:
-                        for i in range(len(column['words'])):
-                            labels.append(column['words'][i])
-                    random.shuffle(labels)
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
-                        "columns": content_object.columns,
                         "labels": labels,
-                    }
-                elif content_type.model_class() == MakeASentence:
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
-                        "sentences": content_object.sentences,
-                    }
-                elif content_type.model_class() == Unscramble:
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
-                        "words": content_object.words,
-                    }
-                elif content_type.model_class() == FillInTheBlanks:
-                    labels = re.findall(r'\[(.*?)\]', content_object.text)
-                    random.shuffle(labels)
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
-                        "text": content_object.text,
-                        "display_format": content_object.display_format,
-                        "labels": labels,
-                    }
-                elif content_type.model_class() == Test:
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
-                        "questions": content_object.questions,
-                    }
-                elif content_type.model_class() == TrueOrFalse:
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
-                        "statements": content_object.statements,
-                    }
-                elif content_type.model_class() == LabelImages:
-                    array = content_object.images
-                    labels = []
-                    for image_data in content_object.images:
-                        labels.append(image_data['label'])
-                    random.shuffle(labels)
-                    data = {
-                        "id": task_id,
-                        "title": content_object.title,
-                        "images": content_object.images,  # [{ "url": "...", "label": "..." }]
-                        "labels": labels,
-                    }
-                else:
-                    return JsonResponse({"error": "Unknown task type"}, status=400)
-        data["taskType"] = content_type.model
-        return JsonResponse(data)
+                    })
+
+        # If no match found
+        return JsonResponse({"error": "Unknown task type"}, status=400)
 
     except Exception as e:
         print(e)
         return JsonResponse({"error": str(e)}, status=500)
-
-
-
-
-
-        # Сохранение заданий
 
 
 
